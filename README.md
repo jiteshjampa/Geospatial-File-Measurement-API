@@ -1,3 +1,6 @@
+<img width="1301" height="533" alt="image" src="https://github.com/user-attachments/assets/8d653309-dd96-4188-833e-2b2e2ae8be3a" />
+<img width="1325" height="575" alt="image" src="https://github.com/user-attachments/assets/c0dbf31c-8144-4d95-8ffa-52cca7b97d32" />
+<img width="1262" height="608" alt="image" src="https://github.com/user-attachments/assets/182d7b09-79d8-4ef0-8df7-645764b6402e" />
 # FieldScope — Geospatial File Measurement API
 
 A FastAPI service and small map-based web interface for uploading zipped Shapefiles and KML survey files. It extracts feature geometry and attributes, converts geometries to WGS84 for map display, and calculates polygon area or line length in a locally selected projected CRS.
