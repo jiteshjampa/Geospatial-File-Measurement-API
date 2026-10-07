@@ -156,17 +156,3 @@ This project demonstrates REST API design, Python type annotations, file validat
 
 Possible next steps: add authentication and per-user file ownership, background jobs for large uploads, Postgres/PostGIS, support more formats and richer KML schemas, store original uploads in object storage, add export/download and spatial filters, and add deployment observability and rate limiting.
 
-## Publishing your submission
-
-Create an empty **public** repository on GitHub, then from this project folder run:
-
-```powershell
-git init
-git add .
-git commit -m "Build geospatial file measurement API"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-git push -u origin main
-```
-
-Replace the remote URL with your repository URL. Run `pytest -q` and verify the README setup on a fresh environment before sharing the link.
