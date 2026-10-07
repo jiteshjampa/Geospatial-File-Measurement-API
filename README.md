@@ -13,6 +13,83 @@ A FastAPI service and small map-based web interface for uploading zipped Shapefi
 The UI is served at `/` and the interactive OpenAPI documentation is at `/docs`.
 Ready-to-upload examples are in `sample_data/`: `sample_survey.kml` contains a polygon, line, and point; `sample_survey.zip` contains a small polygon Shapefile.
 
+### Try the included sample
+
+1. Start the application using the setup steps below.
+2. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+3. Select `sample_data/sample_survey.kml` (or drag it onto the upload area) and choose **Process file**.
+4. The page shows the uploaded file's source CRS and feature count, draws available geometries on the map, and lists area, length, and measurement status for each feature.
+
+The KML sample includes a polygon, line, and point. Expect the polygon to have an area of roughly 12,000 m² and the line a length of roughly 167 m; exact results depend on the selected projection. The point appears on the map but has no area or length, as required by the assignment. You can also select `sample_data/sample_survey.zip` to check Shapefile uploads.
+
+## Local installation explained
+
+The app uses Python 3.11 or newer. Run these commands from the project directory in PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+- `venv` creates an isolated Python environment for this project; activating it makes its Python and installed packages available in the current PowerShell window.
+- `pip install -r requirements.txt` installs the libraries listed in the project's dependency file.
+- `uvicorn app.main:app --reload` starts the server. `app.main` points to `app/main.py`, `app` is the FastAPI application object in that module, and `--reload` restarts the server when Python files change.
+- Open `/` for the upload and map interface or `/docs` for FastAPI's interactive API explorer.
+- The first app startup creates a local SQLite database named `aereo.db` in the working directory. No database server installation is required.
+
+The `.env.example` file documents configuration settings, but the application does not automatically load `.env`. Set environment variables in PowerShell before starting Uvicorn if you want to override defaults.
+
+## Request lifecycle and code concepts
+
+```text
+Browser form (app/static/app.js)
+    │ multipart/form-data: file
+    ▼
+FastAPI route (app/api.py)
+    │ validates filename/size; receives a database session
+    ▼
+Geospatial service (app/services/geospatial.py)
+    │ parses KML or zipped Shapefile; extracts features/properties/CRS
+    │ transforms coordinates; calculates supported measurements
+    ▼
+SQLAlchemy models + SQLite (app/models.py, app/db.py)
+    │ persists upload and its feature records
+    ▼
+JSON response → browser fetches measurements → Leaflet map + results table
+```
+
+FastAPI route decorators such as `@router.post(...)` and `@router.get(...)` map HTTP methods and paths to Python functions. They serve the same general purpose as Spring Boot's `@PostMapping`/`@GetMapping` or Express's `router.post`/`router.get`.
+
+`Depends(get_db)` is FastAPI dependency injection. It asks FastAPI to call `get_db`, provide the route with a SQLAlchemy database session, and close the session after the request. `UploadFile = File(...)` declares a required multipart upload. `Query(default=0, ge=0)` declares a query parameter and validates that it is nonnegative. `async def` allows an endpoint to await asynchronous operations such as reading the uploaded file.
+
+### Database models versus API schemas
+
+- **SQLAlchemy models** in `app/models.py` describe database tables and relationships. `UploadedFile` represents one upload; `MeasuredFeature` represents one extracted feature. These define how application data is persisted.
+- **Pydantic schemas** in `app/schemas.py` describe the API's validated input/output shapes. For example, `FileSummary` defines the JSON fields returned for a stored upload, and `MeasurementsResponse` defines the structure returned by the measurements endpoint.
+
+In short: a **model** describes database persistence; a **schema** describes data crossing the API boundary. Keeping them separate lets the database have internal relationships while the API exposes a deliberate response format.
+
+Python type annotations such as `str`, `int`, `float`, `list[FeatureMeasurement]`, and `dict | None` communicate expected value types. FastAPI and Pydantic use relevant annotations for request validation and response serialization. Ordinary Python type annotations alone do not enforce types at runtime.
+
+### Database and persistence
+
+The default database is **SQLite stored locally** in `aereo.db`; PostgreSQL is not configured in this project. SQLAlchemy is the Python ORM layer: it maps Python model classes to database tables and lets route/service code work with objects and queries instead of constructing SQL strings for each operation.
+
+`app/db.py` creates the SQLAlchemy engine and session factory. `get_db` provides a short-lived session to API routes. `app/main.py` creates tables from the registered models at application startup. On upload, the route adds the upload and its related features, then commits them together. The uploaded source bytes are processed in memory and are not saved; extracted properties, WGS84 geometries, and measurement results are saved.
+
+### What the geospatial libraries do
+
+- **pyshp** (`shapefile`) reads the `.shp` geometry and `.dbf` attribute records from a ZIP without requiring a native GDAL installation.
+- **Shapely** represents and validates points, lines, polygons, and collections; it also performs coordinate transformations and calculates projected area and length.
+- **pyproj** reads the Shapefile `.prj` CRS and creates coordinate transformations between source, WGS84, and projected CRSs.
+- Python's XML `ElementTree` parses KML placemarks, geometry, and basic properties.
+- **Leaflet** draws uploaded features in the browser; OpenStreetMap tiles provide the basemap. The browser requires internet access for the CDN-hosted Leaflet assets and basemap tiles.
+
+KML is treated as EPSG:4326. A Shapefile's CRS is read from its `.prj` file. Geometries are transformed to EPSG:4326 for map display, then polygons and lines are transformed to a local projected CRS before measurement. The API returns map geometries in EPSG:4326, polygon area in square meters (`area_m2`), and line length in meters (`length_m`).
+
 ## Requirements and local setup (Windows PowerShell)
 
 Install Python 3.11 or newer. From this project folder:
@@ -156,3 +233,5 @@ This project demonstrates REST API design, Python type annotations, file validat
 
 Possible next steps: add authentication and per-user file ownership, background jobs for large uploads, Postgres/PostGIS, support more formats and richer KML schemas, store original uploads in object storage, add export/download and spatial filters, and add deployment observability and rate limiting.
 
+
+Replace the remote URL with your repository URL. Run `pytest -q` and verify the README setup on a fresh environment before sharing the link.
